@@ -1,5 +1,9 @@
 # Neon Foosball
 
+By Justin Parkinson and Joshua Parkinson.
+
+**Play it:** https://a44kaliburll.github.io/neon-foosball/
+
 Open index.html in a modern browser. Internet access is needed for Three.js and the optional fonts.
 
 For a local preview, run `python -m http.server 8765 --bind 127.0.0.1` in this folder, then visit http://127.0.0.1:8765.
