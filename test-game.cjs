@@ -1,0 +1,52 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const html=fs.readFileSync(__dirname+'/index.html','utf8');
+const engine=html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const elements=new Map();const el=id=>{if(!elements.has(id))elements.set(id,{style:{},classList:{add(){},remove(){},toggle(){}},addEventListener(){}});return elements.get(id)};
+const ctx=vm.createContext({console,Math,Set,Number,String,JSON,localStorage:{getItem(){return null},setItem(){}},window:{addEventListener(){}},document:{getElementById:el,querySelectorAll(){return []},addEventListener(){}},requestAnimationFrame(){}});
+vm.runInContext(engine+'\n'+fs.readFileSync(__dirname+'/arcade.js','utf8'),ctx);
+const run=s=>vm.runInContext(s,ctx);
+run(`playSfx=()=>{};spawnImpact=()=>{};ballMesh={position:{x:0,y:BALL_R,z:0,set(x,y,z){this.x=x;this.y=y;this.z=z}},rotation:{x:0,z:0}};isMatchActive=true;`);
+run(`bVel={x:.3,y:0,z:0};ballMesh.position.x=PLAY_W/2;updateMatchPhysics()`);assert(run('bVel.x')<0,'side rail reflects ball');
+run(`ballMesh.position.set(0,BALL_R,-FH/2-.1);bVel={x:0,y:0,z:-.1};updateMatchPhysics()`);assert.equal(run('scores.player'),1,'far goal credits player');
+run(`paused=true;arcadeTick()`);assert.equal(run('goalCountdown'),1.8,'pause freezes goal countdown');
+run(`paused=false;for(let i=0;i<110;i++)arcadeTick()`);assert.equal(run('isGoalPause'),false,'goal celebration returns to play');
+run(`ballMesh.position.set(0,BALL_R,0);bVel={x:0,y:.2,z:0};updateMatchPhysics()`);assert(run('ballMesh.position.y')>run('BALL_R'),'ball bounce continues off floor');
+run(`beginCharge();for(let i=0;i<45;i++)arcadeTick();releaseCharge()`);assert(run('shotPower')>.99,'hold produces full charge');assert(run('shotWindow')>0,'release arms timed shot');
+run(`energy=99;fireSuper()`);assert.equal(run('superWindow'),0,'blast requires full energy');run(`energy=100;fireSuper()`);assert.equal(run('energy'),0);assert(run('superWindow')>0);
+run(`scores.player=4;triggerGoal('player');for(let i=0;i<110;i++)arcadeTick()`);assert.equal(run('isMatchActive'),false,'fifth goal ends match');assert.equal(run('record.wins'),1,'victory records win');
+console.log('PASS: rail rebounds, goal ownership, paused celebration, resume, bounce, charge timing, blast energy, match victory and record.');
+
+run(`isMatchActive=true;isGoalPause=false;
+const figure={localX:0,mount:{rotation:{},position:{}},shadow:{position:{}}};
+const carrier={team:'p',role:'attack',maxLocalX:0,players:[figure],group:{position:{x:0,z:0}},slideVel:0,flickAngle:0,flickTarget:0};
+rods.push(carrier);
+function setupMagnet(angle=0){clearPossession();carrier.group.position.x=0;carrier.slideVel=0;ballMesh.position.set(Math.sin(angle)*FOOT_WRAP_X,BALL_R,-Math.cos(angle)*FOOT_WRAP_Z);bVel={x:0,y:0,z:0};takePossession(carrier,figure);}
+setupMagnet();carrier.group.position.x=.3;const beforeX=ballMesh.position.x;followPossession(true);`);
+assert(run('Math.abs(ballMesh.position.x-beforeX)')<.15,'magnet does not teleport with foot');
+assert(run('Math.hypot(possession.vx,possession.vz)')>0,'drag gives attracted ball velocity');
+const first=run('ballMesh.position.z');run('for(let i=0;i<15;i++)followPossession(true)');
+assert.notEqual(run('ballMesh.position.z'),first,'ball continues settling after drag stops');
+run('for(let i=0;i<180;i++)followPossession(true)');
+assert(run('Math.hypot(possession.vx,possession.vz)')<.001,'magnetic motion settles stably');
+for(const [angle,label,xSign,zSign] of [[0,'forward',0,-1],[Math.PI,'backward',0,1],[Math.PI/2,'right',1,0],[-Math.PI/2,'left',-1,0]]){
+ run(`setupMagnet(${angle});launchHeld('pass')`);
+ const x=run('bVel.x'),z=run('bVel.z');
+ assert(xSign===0?Math.abs(x)<1e-8:x*xSign>.2,label+' pass x');
+ assert(zSign===0?Math.abs(z)<1e-8:z*zSign>.2,label+' pass z');
+ run(`setupMagnet(${angle});launchHeld('shot',1)`);
+ assert(Math.abs(run('Math.hypot(bVel.x,bVel.z)')-.54)<1e-8,label+' shot keeps selected speed');
+ assert(zSign===0?Math.abs(run('bVel.z'))<1e-8:run('bVel.z')*zSign>.5,label+' shot direction');
+}
+run(`setupMagnet();for(let i=0;i<60;i++){carrier.group.position.x+=.025;followPossession(true)}for(let i=0;i<80;i++)followPossession(true)`);
+assert(run('ballMesh.position.z')>0,'continuous rod drag brings ball behind foot');
+run(`const prediction=footShot(carrier,possession.offset);launchHeld('pass')`);
+assert(run('bVel.z')>0,'dragged rear ball passes backward');
+assert(Math.abs(run('bVel.x/bVel.z-prediction.x/prediction.z'))<1e-8,'pass matches actual ball aim');
+run(`setupMagnet(Math.PI/4);carrier.slideVel=.1;const movingShot=footShot(carrier,possession.offset);carrier.slideVel=0;const stillShot=footShot(carrier,possession.offset)`);
+assert(run('movingShot.x')>run('stillShot.x'),'rod movement adds slice');
+run(`clearPossession();shotWindow=0;superWindow=0;ballMesh.position.set(0,BALL_R,-.2);bVel={x:0,y:0,z:.4};handleFootContact(carrier,figure)`);
+assert.equal(run('possession'),null,'fast shot rebounds instead of magnetizing');
+run(`sourceLock=0;catchLock=0;trapBall();handleFootContact(carrier,figure)`);
+assert(run('possession!==null'),'deliberate trap engages magnet');
+run('resetBall(true)');assert.equal(run('possession'),null,'serve resets magnet');
+console.log('PASS: spring lag, momentum, stable attraction, 360-degree passes/shots, drag to rear, aim matching, slice, rebounds and trap.');

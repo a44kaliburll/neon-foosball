@@ -1,0 +1,21 @@
+<div class="brand"><span class="brand-icon">N</span> NEON<span>FOOSBALL</span><small>POCKET ARCADE / VOL. 01</small></div>
+<div id="hud" class="hidden scoreboard">
+ <div><small>RED RIVALS</small><strong id="score-ai">0</strong></div><div class="match-label"><b>FIRST TO FIVE</b><span id="hud-role-name">ATTACK</span><button onclick="togglePause()" aria-label="Pause game">Ⅱ</button></div><div class="you"><small>NEON CLUB</small><strong id="score-player">0</strong></div>
+</div>
+<div class="utility"><button id="sound-btn" onclick="toggleMute()"><span id="sound-icon">🔊</span> <span id="sound-label">Audio ON</span></button></div>
+<div id="menu-modal" class="overlay">
+ <main class="menu panel"><div class="eyebrow">SMALL TABLE. BIG ENERGY.</div><h1>MAKE<br>EVERY <em>SHOT.</em></h1><p class="intro">Slide. Strike. Light it up.<br>Your rod. Your moment. First to five takes the table.</p>
+ <div class="section-label">01 <span>PICK YOUR POSITION</span></div>
+ <div class="roles"><button onclick="chooseRole('goalie')" id="card-goalie" class="toy-card"><i>◈</i><b>THE WALL</b><span>Goalie · 1 figure</span></button><button onclick="chooseRole('defense')" id="card-defense" class="toy-card"><i>⛨</i><b>THE ANCHOR</b><span>Defense · 2 figures</span></button><button onclick="chooseRole('attack')" id="card-attack" class="toy-card active"><i>↗</i><b>THE FINISHER</b><span>Attack · 3 figures</span></button></div>
+ <div class="section-label">02 <span>SET THE CHALLENGE</span></div><div class="levels"><button onclick="setDifficulty('chill',this)">Chill</button><button class="selected" onclick="setDifficulty('arcade',this)">Arcade</button><button onclick="setDifficulty('pro',this)">Pro</button></div>
+ <button class="primary" onclick="startMatch()">LET’S PLAY <span>↗</span></button>
+ <div class="how"><span><kbd>← →</kbd> / mouse to slide</span><span>Hold <kbd>SPACE</kbd>, release to strike</span><span><kbd>1 2 3</kbd> switch rods · <kbd>E</kbd> neon blast</span></div><p class="fine">Slow balls are attracted to your foot. Drag to aim all the way around. Hold Shift briefly to trap a fast ball. F passes in the direction of your aim arrow.</p><div id="record" class="record">YOUR TABLE IS WAITING</div><p id="load-error" hidden>The 3D table could not load. Check your internet connection and reload.</p>
+ </main><div class="menu-note"><span>✦</span> BUILT FOR ONE MORE ROUND.</div>
+</div>
+<div id="play-controls" class="hidden play-controls"><div class="control-hint">SLIDE TO AIM <span>·</span> HOLD & RELEASE TO STRIKE</div><div id="possession-label" class="control-hint" role="status">LOOSE BALL · SLOW BALLS ATTRACT</div><div class="action-row"><button onclick="cycleRole()" class="rod-button">SWITCH ROD <small>1 / 2 / 3</small></button><button id="strike-btn" class="strike">STRIKE <span id="charge-label">HOLD SPACE</span><i id="charge-fill"></i></button><button onclick="passBall()">PASS <small>F · AIMED PASS</small></button><button onclick="trapBall()">TRAP <small>SHIFT · TIME IT</small></button><button id="super-btn" onclick="fireSuper()" class="super">NEON BLAST <span id="energy-label">0%</span><i id="energy-fill"></i></button></div></div>
+<div id="toast" role="status"></div>
+<div id="goal-banner" class="hidden goal-banner"><div id="goal-subtext">WHAT A SHOT</div><div id="goal-text">GOAL!</div></div>
+<div id="pause-modal" class="hidden overlay"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATHER</div><h2>TIME OUT.</h2><p>The table will be right here.</p><button class="primary" onclick="togglePause()">BACK TO IT ↗</button><button class="secondary" onclick="quitMatch()">Return to lobby</button></div></div>
+<div id="gameover-modal" class="hidden overlay"><div class="panel results"><div id="gameover-trophy">🏆</div><div class="eyebrow">THAT’S A WRAP</div><h2 id="gameover-title">VICTORY!</h2><p id="gameover-desc"></p><div id="match-stats" class="stats"></div><button class="primary" onclick="document.getElementById('gameover-modal').classList.add('hidden');startMatch()">RUN IT BACK ↗</button><button class="secondary" onclick="restartGame()">Change your setup</button></div></div>
+
+

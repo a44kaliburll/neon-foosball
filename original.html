@@ -1,0 +1,1611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tactical Foosball Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700;800&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0c1017;
+            font-family: 'Outfit', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        .retro-title {
+            font-family: 'Fredoka', sans-serif;
+            text-shadow: 0 4px 0 #064e3b, 0 8px 20px rgba(16, 185, 129, 0.4);
+        }
+        .toy-card {
+            transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+            cursor: pointer;
+            border: 2px solid rgba(255, 255, 255, 0.08);
+            background: linear-gradient(180deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
+        }
+        .toy-card:hover {
+            transform: translateY(-4px) scale(1.02);
+            border-color: #34d399;
+            box-shadow: 0 12px 24px -6px rgba(16, 185, 129, 0.35);
+        }
+        .toy-card.active {
+            border-color: #10b981;
+            background: linear-gradient(180deg, rgba(16, 185, 129, 0.25) 0%, rgba(6, 78, 59, 0.4) 100%);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3), 0 16px 28px -4px rgba(16, 185, 129, 0.4);
+        }
+        .crt-scanlines {
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.18) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="w-full h-full relative overflow-hidden bg-slate-950">
+
+<div id="ui-layer" class="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-4 sm:p-6">
+    <!-- Top HUD Banner -->
+    <div id="hud" class="hidden w-full max-w-5xl mx-auto flex items-center justify-between pointer-events-auto">
+        <!-- AI Card -->
+        <div class="flex items-center gap-3 bg-slate-900/90 border-2 border-rose-500/40 px-4 py-2 sm:px-5 sm:py-3 rounded-2xl shadow-xl backdrop-blur-md">
+            <div class="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center text-xl font-black text-rose-400 border border-rose-500/30">CPU</div>
+            <div>
+                <div class="text-[10px] font-black uppercase tracking-wider text-rose-400">RED SQUAD</div>
+                <div id="score-ai" class="text-3xl sm:text-4xl font-black text-white leading-none">0</div>
+            </div>
+        </div>
+
+        <!-- Center Match Badge -->
+        <div class="flex flex-col items-center">
+            <div class="px-4 py-1.5 rounded-full bg-slate-900/90 border border-emerald-500/40 text-emerald-400 text-xs font-black uppercase tracking-widest shadow-lg flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                ACTIVE ROD: <span id="hud-role-name" class="text-white">ATTACK</span>
+            </div>
+            <div class="text-[10px] text-slate-400 font-bold mt-1 tracking-wider">FIRST TO 5 GOALS</div>
+        </div>
+
+        <!-- Player Card -->
+        <div class="flex items-center gap-3 bg-slate-900/90 border-2 border-emerald-500/40 px-4 py-2 sm:px-5 sm:py-3 rounded-2xl shadow-xl backdrop-blur-md">
+            <div class="text-right">
+                <div class="text-[10px] font-black uppercase tracking-wider text-emerald-400">YOUR TEAM</div>
+                <div id="score-player" class="text-3xl sm:text-4xl font-black text-white leading-none">0</div>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-xl font-black text-emerald-400 border border-emerald-500/30">YOU</div>
+        </div>
+    </div>
+
+    <!-- Bottom Controls and Audio Mute -->
+    <div class="w-full max-w-5xl mx-auto flex items-center justify-between pointer-events-auto">
+        <div class="text-xs text-slate-400 bg-slate-900/80 px-3.5 py-1.5 rounded-xl border border-white/5 backdrop-blur hidden sm:block">
+            🖱️ Move Mouse / Touch / Arrows to Slide Rod
+        </div>
+        <button id="sound-btn" onclick="toggleMute()" class="px-3 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 text-xs font-bold rounded-xl border border-white/10 transition-colors pointer-events-auto flex items-center gap-1.5 shadow-md">
+            <span id="sound-icon">🔊</span> <span id="sound-label">Audio ON</span>
+        </button>
+    </div>
+</div>
+
+<!-- Start / Role Select Modal -->
+<div id="menu-modal" class="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="w-full max-w-lg bg-slate-900 border-2 border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl text-center relative overflow-hidden">
+        <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-64 h-32 bg-emerald-500/20 blur-3xl rounded-full pointer-events-none"></div>
+
+        <div class="inline-block px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-emerald-400 text-[11px] font-extrabold uppercase tracking-widest mb-2">
+            Wes Anderson Tabletop Series
+        </div>
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight text-white mb-2 retro-title">TACTICAL FOOSBALL</h1>
+        <p class="text-slate-400 text-xs sm:text-sm mb-6">Select which squad rod you want to manually pilot for the entire match:</p>
+
+        <!-- Role Selection Cards -->
+        <div class="grid grid-cols-3 gap-3 mb-6">
+            <!-- Goalie -->
+            <div onclick="chooseRole('goalie')" id="card-goalie" class="toy-card p-3 sm:p-4 rounded-2xl flex flex-col items-center text-center">
+                <div class="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-2xl mb-2 shadow-inner">🧤</div>
+                <div class="font-extrabold text-white text-sm">Goalie</div>
+                <div class="text-[10px] text-emerald-400 font-bold uppercase mt-0.5">1 Player</div>
+                <div class="text-[9px] text-slate-400 mt-1 leading-tight">Goal corridor lock</div>
+            </div>
+
+            <!-- Defense -->
+            <div onclick="chooseRole('defense')" id="card-defense" class="toy-card p-3 sm:p-4 rounded-2xl flex flex-col items-center text-center">
+                <div class="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-2xl mb-2 shadow-inner">🛡️</div>
+                <div class="font-extrabold text-white text-sm">Defense</div>
+                <div class="text-[10px] text-emerald-400 font-bold uppercase mt-0.5">2 Players</div>
+                <div class="text-[9px] text-slate-400 mt-1 leading-tight">Wide lane split</div>
+            </div>
+
+            <!-- Attack -->
+            <div onclick="chooseRole('attack')" id="card-attack" class="toy-card p-3 sm:p-4 rounded-2xl flex flex-col items-center text-center active">
+                <div class="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-2xl mb-2 shadow-inner">🎯</div>
+                <div class="font-extrabold text-white text-sm">Attack</div>
+                <div class="text-[10px] text-emerald-400 font-bold uppercase mt-0.5">3 Players</div>
+                <div class="text-[9px] text-slate-400 mt-1 leading-tight">Striker line & angles</div>
+            </div>
+        </div>
+
+        <button onclick="startMatch()" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-base uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-500/30 transform active:scale-95 transition-all">
+            DROP BALL & KICK OFF ⚽
+        </button>
+    </div>
+</div>
+
+<!-- Goal Banner -->
+<div id="goal-banner" class="hidden absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+    <div class="bg-slate-900/95 border-4 border-amber-400 px-10 py-6 rounded-3xl shadow-2xl text-center transform scale-90 animate-bounce">
+        <div id="goal-subtext" class="text-xs font-black uppercase tracking-widest text-amber-400 mb-1">UNBELIEVABLE STRIKE!</div>
+        <div id="goal-text" class="text-5xl sm:text-6xl font-black text-white retro-title tracking-tight">GOOOAAAL!</div>
+    </div>
+</div>
+
+<!-- Game Over Modal -->
+<div id="gameover-modal" class="hidden absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+    <div class="w-full max-w-md bg-slate-900 border-2 border-white/10 rounded-3xl p-8 shadow-2xl text-center">
+        <div id="gameover-trophy" class="text-5xl mb-3">🏆</div>
+        <h2 id="gameover-title" class="text-4xl font-black text-white mb-1 retro-title">VICTORY!</h2>
+        <p id="gameover-desc" class="text-slate-400 text-sm mb-6">You dominated the pitch and outmaneuvered the CPU squad.</p>
+        <button onclick="restartGame()" class="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-500/30 active:scale-95 transition-all">
+            PLAY REMATCH
+        </button>
+    </div>
+</div>
+
+<div class="crt-scanlines absolute inset-0 pointer-events-none z-10"></div>
+
+<script>
+    // Web Audio Synthesizer (Zero external audio URLs)
+    let audioCtx = null;
+    let isMuted = false;
+
+    function initAudio() {
+        if (!audioCtx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function toggleMute() {
+        isMuted = !isMuted;
+        document.getElementById('sound-icon').innerText = isMuted ? '🔇' : '🔊';
+        document.getElementById('sound-label').innerText = isMuted ? 'Audio OFF' : 'Audio ON';
+    }
+
+    function playSfx(type) {
+        if (isMuted) return;
+        try {
+            initAudio();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'kick') {
+                // Tactile vinyl ball pop
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(320, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
+                gain.gain.setValueAtTime(0.45, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } else if (type === 'rod_resonance') {
+                // High-tension steel rod harmonic ping and twang
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(920, now);
+                osc.frequency.exponentialRampToValueAtTime(340, now + 0.14);
+                gain.gain.setValueAtTime(0.28, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+                osc.start(now);
+                osc.stop(now + 0.14);
+
+                // Upper metallic overtone
+                const osc2 = audioCtx.createOscillator();
+                const gain2 = audioCtx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(1680, now);
+                osc2.frequency.exponentialRampToValueAtTime(620, now + 0.09);
+                gain2.gain.setValueAtTime(0.18, now);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+                osc2.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                osc2.start(now);
+                osc2.stop(now + 0.09);
+            } else if (type === 'bumper') {
+                // Rubberized side rail cushion bounce
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.exponentialRampToValueAtTime(95, now + 0.07);
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.07);
+                osc.start(now);
+                osc.stop(now + 0.07);
+            } else if (type === 'drop') {
+                // Ball pitch drop bounce thud
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(60, now + 0.1);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'goal') {
+                // Retro arcade fanfare chords
+                [440, 554.37, 659.25, 880].forEach((freq, i) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.type = 'sawtooth';
+                    o.frequency.setValueAtTime(freq, now + i * 0.08);
+                    g.gain.setValueAtTime(0.2, now + i * 0.08);
+                    g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.35);
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.start(now + i * 0.08);
+                    o.stop(now + i * 0.08 + 0.35);
+                });
+            } else if (type === 'whistle') {
+                // Dual tone referee whistle
+                [1800, 2400].forEach(f => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.type = 'sine';
+                    o.frequency.setValueAtTime(f, now);
+                    g.gain.setValueAtTime(0.18, now);
+                    g.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.start(now);
+                    o.stop(now + 0.18);
+                });
+            }
+        } catch(e) {
+            // Audio context safely suppressed
+        }
+    }
+
+    // Table and Arena Dimensions
+    const FW = 11.2, FH = 20.5;
+    const BUMPER_THICK = 0.35;
+    const PLAY_W = FW - BUMPER_THICK * 2; // Active corridor between side rubber bumpers
+    const BALL_R = 0.32;
+    const P_W = 1.6, P_H = 2.2, P_D = 0.4;
+    const GOAL_W = 4.0;
+    const CORNER_RAMP_LX = 2.4; // Extent along back goal wall (integrated into pitch)
+    const CORNER_RAMP_LZ = 2.4; // Extent along side rail (integrated into pitch)
+    const CORNER_RAMP_H = 0.42; // Smooth ramp elevation apex at the corner
+
+    // Game and Physics State
+    let scene, camera, renderer;
+    let ballMesh = null;
+    let bVel = { x: 0, y: 0, z: 0 };
+    let dropBounces = 0;
+    let dropRippleMesh = null;
+    let isMatchActive = false;
+    let isGoalPause = false;
+    let activeRole = 'attack';
+    let scores = { player: 0, ai: 0 };
+    let mouseNormX = 0.5;
+
+    // Visual elements & Side Rail Bumpers
+    const rods = [];
+    let leftBumperMesh = null, rightBumperMesh = null;
+    const bumperRecoil = { left: 0, right: 0 };
+    const impactParticles = [];
+    const impactRings = [];
+    const geometricStars = [];
+    let hitstopFrames = 0;
+    let cameraShake = { x: 0, y: 0, intensity: 0 };
+
+    // Procedural Figurine Generator (Matte Vinyl miniature NES hockey player)
+    function createFigurineCanvas(team, role) {
+        const cvs = document.createElement('canvas');
+        cvs.width = 128;
+        cvs.height = 160;
+        const ctx = cvs.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        const isGreen = team === 'p';
+        const primary = isGreen ? '#10b981' : '#f43f5e';
+        const primaryDark = isGreen ? '#065f46' : '#9f1239';
+        const primaryLight = isGreen ? '#6ee7b7' : '#fda4af';
+        const trim = isGreen ? '#f59e0b' : '#38bdf8';
+        const skin = '#fcd34d';
+        const skinShadow = '#d97706';
+
+        // Miniature vinyl head
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.arc(64, 38, 22, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Face & Visor / Cap
+        ctx.fillStyle = skin;
+        ctx.fillRect(48, 28, 32, 22);
+        ctx.fillStyle = skinShadow;
+        ctx.fillRect(48, 46, 32, 4);
+
+        // Expressive Eyes
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(54, 34, 4, 8);
+        ctx.fillRect(70, 34, 4, 8);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(54, 34, 2, 3);
+        ctx.fillRect(70, 34, 2, 3);
+
+        // Hair / Helmet trim
+        ctx.fillStyle = trim;
+        ctx.fillRect(46, 22, 36, 6);
+
+        // Chunky Torso / Jersey
+        ctx.fillStyle = primary;
+        ctx.fillRect(40, 52, 48, 48);
+        // Gloss highlight & shadows
+        ctx.fillStyle = primaryLight;
+        ctx.fillRect(42, 54, 8, 44);
+        ctx.fillStyle = primaryDark;
+        ctx.fillRect(80, 54, 8, 44);
+
+        // Stitched center badge / squad number
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(64, 74, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = primaryDark;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(role === 'goalie' ? '1' : (role === 'defense' ? '4' : '9'), 64, 75);
+
+        // Visible stitched running thread along collar & hem
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        for (let x = 44; x <= 84; x += 4) {
+            ctx.fillRect(x, 52, 2, 1);
+            ctx.fillRect(x, 99, 2, 1);
+        }
+
+        // Chunky Arms & Oversized Mitts/Hands
+        ctx.fillStyle = primary;
+        ctx.fillRect(28, 56, 12, 26);
+        ctx.fillRect(88, 56, 12, 26);
+        ctx.fillStyle = role === 'goalie' ? '#f59e0b' : skin;
+        ctx.fillRect(26, 82, 14, 14);
+        ctx.fillRect(88, 82, 14, 14);
+
+        // Shorts
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(44, 100, 40, 20);
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(44, 100, 6, 20);
+
+        // Boots / Cleats
+        ctx.fillStyle = skin;
+        ctx.fillRect(48, 120, 12, 16);
+        ctx.fillRect(68, 120, 12, 16);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(46, 136, 16, 14);
+        ctx.fillRect(66, 136, 16, 14);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(46, 148, 16, 4);
+        ctx.fillRect(66, 148, 16, 4);
+
+        return cvs;
+    }
+
+    // Soft Shadow Cross Floor Decal Canvas
+    function createShadowCrossCanvas() {
+        const cvs = document.createElement('canvas');
+        cvs.width = 64;
+        cvs.height = 64;
+        const ctx = cvs.getContext('2d');
+        const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+        grad.addColorStop(0, 'rgba(0, 0, 0, 0.45)');
+        grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.22)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(32, 32, 30, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cross marker
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.fillRect(30, 16, 4, 32);
+        ctx.fillRect(16, 30, 32, 4);
+        return cvs;
+    }
+
+    function initEngine() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0e17);
+
+        camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+        updateCameraFraming();
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Wes Anderson Warm Studio Lighting
+        const ambient = new THREE.AmbientLight(0xfffbeb, 0.65);
+        scene.add(ambient);
+
+        const sun = new THREE.DirectionalLight(0xffffff, 0.95);
+        sun.position.set(6, 28, 10);
+        sun.castShadow = true;
+        sun.shadow.mapSize.width = 2048;
+        sun.shadow.mapSize.height = 2048;
+        sun.shadow.camera.near = 5;
+        sun.shadow.camera.far = 50;
+        sun.shadow.camera.left = -12;
+        sun.shadow.camera.right = 12;
+        sun.shadow.camera.top = 18;
+        sun.shadow.camera.bottom = -18;
+        sun.shadow.bias = -0.001;
+        scene.add(sun);
+
+        const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.35);
+        fillLight.position.set(-8, 14, -8);
+        scene.add(fillLight);
+
+        buildPitchAndArena();
+        buildRods();
+        buildBall();
+
+        // Event listeners
+        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('mousemove', e => {
+            mouseNormX = Math.max(0, Math.min(1, e.clientX / window.innerWidth));
+        });
+        window.addEventListener('touchmove', e => {
+            if (e.touches.length > 0) {
+                mouseNormX = Math.max(0, Math.min(1, e.touches[0].clientX / window.innerWidth));
+            }
+        }, { passive: true });
+        window.addEventListener('keydown', e => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') mouseNormX = Math.max(0, mouseNormX - 0.05);
+            if (e.key === 'ArrowRight' || e.key === 'd') mouseNormX = Math.min(1, mouseNormX + 0.05);
+        });
+
+        requestAnimationFrame(animate);
+    }
+
+    // Dynamic Camera Framing ensuring both goal areas & goalies stay in frame
+    function updateCameraFraming() {
+        if (!camera) return;
+        const aspect = window.innerWidth / window.innerHeight;
+        camera.aspect = aspect;
+
+        // Bounding table limits including goal recesses
+        const targetHalfH = FH / 2 + 3.2;
+        const targetHalfW = FW / 2 + 1.8;
+
+        const fovRad = (camera.fov * Math.PI) / 180;
+        const distForHeight = targetHalfH / Math.tan(fovRad / 2);
+        const distForWidth = targetHalfW / (Math.tan(fovRad / 2) * aspect);
+
+        const camY = Math.max(25, Math.max(distForHeight, distForWidth) * 1.08);
+        const camZ = camY * 0.22; // 2.5D slight forward angle
+
+        camera.position.set(0, camY, camZ);
+        camera.lookAt(0, 0, 0);
+        camera.updateProjectionMatrix();
+    }
+
+    function onWindowResize() {
+        updateCameraFraming();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function buildPitchAndArena() {
+        // Pitch Surface (Tactile felt with alternating lawn stripes)
+        const pitchCanvas = document.createElement('canvas');
+        pitchCanvas.width = 256;
+        pitchCanvas.height = 512;
+        const pctx = pitchCanvas.getContext('2d');
+        pctx.fillStyle = '#064e3b';
+        pctx.fillRect(0, 0, 256, 512);
+        pctx.fillStyle = '#047857';
+        for (let y = 0; y < 512; y += 48) {
+            pctx.fillRect(0, y, 256, 24);
+        }
+        // Pitch markings
+        pctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        pctx.lineWidth = 4;
+        pctx.strokeRect(12, 12, 232, 488);
+        pctx.beginPath();
+        pctx.moveTo(12, 256);
+        pctx.lineTo(244, 256);
+        pctx.stroke();
+        pctx.beginPath();
+        pctx.arc(128, 256, 44, 0, Math.PI * 2);
+        pctx.stroke();
+
+        const pitchTex = new THREE.CanvasTexture(pitchCanvas);
+        const pitchMat = new THREE.MeshStandardMaterial({
+            map: pitchTex,
+            roughness: 0.85,
+            metalness: 0.05
+        });
+        const pitchMesh = new THREE.Mesh(new THREE.PlaneGeometry(FW, FH), pitchMat);
+        pitchMesh.rotation.x = -Math.PI / 2;
+        pitchMesh.receiveShadow = true;
+        scene.add(pitchMesh);
+
+        // Rich Walnut Wood Outer Rails
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x27160c, roughness: 0.6, metalness: 0.1 });
+        const sideRailGeo = new THREE.BoxGeometry(0.5, 1.4, FH + 0.8);
+
+        const leftRail = new THREE.Mesh(sideRailGeo, woodMat);
+        leftRail.position.set(-FW / 2 - 0.25, 0.7, 0);
+        leftRail.castShadow = true;
+        leftRail.receiveShadow = true;
+        scene.add(leftRail);
+
+        const rightRail = new THREE.Mesh(sideRailGeo, woodMat);
+        rightRail.position.set(FW / 2 + 0.25, 0.7, 0);
+        rightRail.castShadow = true;
+        rightRail.receiveShadow = true;
+        scene.add(rightRail);
+
+        // Tactile Molded Rubber Side Bumpers
+        const bumperGeo = new THREE.BoxGeometry(BUMPER_THICK, 0.8, FH - 0.2);
+        const bumperMat = new THREE.MeshStandardMaterial({
+            color: 0xdfd5c6, // Cream retro rubber cushion
+            roughness: 0.75,
+            metalness: 0.15
+        });
+
+        leftBumperMesh = new THREE.Mesh(bumperGeo, bumperMat);
+        leftBumperMesh.position.set(-FW / 2 + BUMPER_THICK / 2, 0.4, 0);
+        leftBumperMesh.castShadow = true;
+        leftBumperMesh.receiveShadow = true;
+        scene.add(leftBumperMesh);
+
+        rightBumperMesh = new THREE.Mesh(bumperGeo, bumperMat);
+        rightBumperMesh.position.set(FW / 2 - BUMPER_THICK / 2, 0.4, 0);
+        rightBumperMesh.castShadow = true;
+        rightBumperMesh.receiveShadow = true;
+        scene.add(rightBumperMesh);
+
+        // Brass Stud Rivets & Dead-Ball Corner Deflector Ramps
+        const brassMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.25 });
+        const rivetGeo = new THREE.CylinderGeometry(0.06, 0.06, BUMPER_THICK + 0.08, 12);
+        rivetGeo.rotateZ(Math.PI / 2);
+
+        [-1, 1].forEach(side => {
+            const bx = side * (FW / 2 - BUMPER_THICK / 2);
+            for (let z = -FH / 2 + 2.2; z <= FH / 2 - 2.2; z += 3.2) {
+                const rivet = new THREE.Mesh(rivetGeo, brassMat);
+                rivet.position.set(bx, 0.55, z);
+                scene.add(rivet);
+            }
+        });
+
+        // Tournament 3D Sloped Corner Bank Ramps
+        buildCornerRamps();
+
+        // 3D Goal Structures (Top Red Goal, Bottom Green Goal)
+        buildGoal(-FH / 2, 0xf43f5e, -1);
+        buildGoal(FH / 2, 0x10b981, 1);
+    }
+
+    function buildGoal(zPos, netColor, dir) {
+        const goalGroup = new THREE.Group();
+        const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.4, roughness: 0.3 });
+        const postGeo = new THREE.BoxGeometry(0.25, 1.4, 0.25);
+
+        const leftPost = new THREE.Mesh(postGeo, postMat);
+        leftPost.position.set(-GOAL_W / 2, 0.7, 0);
+        goalGroup.add(leftPost);
+
+        const rightPost = new THREE.Mesh(postGeo, postMat);
+        rightPost.position.set(GOAL_W / 2, 0.7, 0);
+        goalGroup.add(rightPost);
+
+        const crossbar = new THREE.Mesh(new THREE.BoxGeometry(GOAL_W + 0.25, 0.25, 0.25), postMat);
+        crossbar.position.set(0, 1.4, 0);
+        goalGroup.add(crossbar);
+
+        // Goal Netting Box
+        const netCanvas = document.createElement('canvas');
+        netCanvas.width = 128;
+        netCanvas.height = 128;
+        const nctx = netCanvas.getContext('2d');
+        nctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        nctx.lineWidth = 2;
+        for (let i = 0; i <= 128; i += 12) {
+            nctx.beginPath(); nctx.moveTo(i, 0); nctx.lineTo(i, 128); nctx.stroke();
+            nctx.beginPath(); nctx.moveTo(0, i); nctx.lineTo(128, i); nctx.stroke();
+        }
+        const netTex = new THREE.CanvasTexture(netCanvas);
+        netTex.wrapS = THREE.RepeatWrapping;
+        netTex.wrapT = THREE.RepeatWrapping;
+        netTex.repeat.set(2, 2);
+
+        const netMat = new THREE.MeshBasicMaterial({
+            map: netTex,
+            color: netColor,
+            transparent: true,
+            opacity: 0.35,
+            side: THREE.DoubleSide
+        });
+        const netBox = new THREE.Mesh(new THREE.BoxGeometry(GOAL_W, 1.3, 1.5), netMat);
+        netBox.position.set(0, 0.65, dir * 0.75);
+        goalGroup.add(netBox);
+
+        goalGroup.position.z = zPos;
+        scene.add(goalGroup);
+    }
+
+    // Seamless Green Pitch Turf Texture for In-Field Sloped Corner Ramps
+    function createPitchRampTexture() {
+        const cvs = document.createElement('canvas');
+        cvs.width = 256;
+        cvs.height = 256;
+        const ctx = cvs.getContext('2d');
+
+        // Match table pitch felt tone (#064e3b base with subtle lawn stripes)
+        ctx.fillStyle = '#064e3b';
+        ctx.fillRect(0, 0, 256, 256);
+
+        // Subtle alternating turf lawn pattern to match the field surface
+        ctx.fillStyle = '#047857';
+        for (let d = -256; d < 512; d += 32) {
+            ctx.fillRect(0, d, 256, 16);
+        }
+
+        // Soft natural ambient shadow gradient (deeper tone near the base, soft studio highlight toward apex)
+        const grad = ctx.createLinearGradient(0, 256, 256, 0);
+        grad.addColorStop(0, 'rgba(4, 120, 87, 0.2)');
+        grad.addColorStop(0.7, 'rgba(6, 78, 59, 0.4)');
+        grad.addColorStop(1, 'rgba(16, 185, 129, 0.15)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 256, 256);
+
+        // Faint pitch boundary line where sloped turf meets the field
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(0, 254);
+        ctx.lineTo(254, 0);
+        ctx.stroke();
+
+        return new THREE.CanvasTexture(cvs);
+    }
+
+    // Field-Integrated Sloped Corner Ramps (Seamless green turf wedges built into table corners)
+    function buildCornerRamps() {
+        const halfPlayW = PLAY_W / 2;
+        const halfH = FH / 2;
+        const Lx = CORNER_RAMP_LX;
+        const Lz = CORNER_RAMP_LZ;
+        const H = CORNER_RAMP_H;
+
+        const rampTex = createPitchRampTexture();
+        const rampMat = new THREE.MeshStandardMaterial({
+            map: rampTex,
+            roughness: 0.82,
+            metalness: 0.05
+        });
+
+        // Mahogany wood wall trim behind the ramp against table outer walls
+        const wallMat = new THREE.MeshStandardMaterial({
+            color: 0x27160c,
+            roughness: 0.65
+        });
+
+        [-1, 1].forEach(side => {
+            [-1, 1].forEach(end => {
+                const cornerGroup = new THREE.Group();
+
+                // Corner apex coordinates at table perimeter
+                const cx = side * halfPlayW;
+                const cz = end * halfH;
+
+                // 1. Smoothly Incline-Sloped Pitch Turf Surface
+                const pEndFloor = new THREE.Vector3(side * (halfPlayW - Lx), 0.005, end * halfH);
+                const pSideFloor = new THREE.Vector3(side * halfPlayW, 0.005, end * (halfH - Lz));
+                const pApex = new THREE.Vector3(cx, H, cz);
+
+                const rampGeo = new THREE.BufferGeometry();
+                let positions;
+                let uvs;
+                if (side * end > 0) {
+                    positions = new Float32Array([
+                        pEndFloor.x, pEndFloor.y, pEndFloor.z,
+                        pSideFloor.x, pSideFloor.y, pSideFloor.z,
+                        pApex.x, pApex.y, pApex.z
+                    ]);
+                    uvs = new Float32Array([
+                        0, 0,
+                        1, 0,
+                        0.5, 1
+                    ]);
+                } else {
+                    positions = new Float32Array([
+                        pSideFloor.x, pSideFloor.y, pSideFloor.z,
+                        pEndFloor.x, pEndFloor.y, pEndFloor.z,
+                        pApex.x, pApex.y, pApex.z
+                    ]);
+                    uvs = new Float32Array([
+                        0, 0,
+                        1, 0,
+                        0.5, 1
+                    ]);
+                }
+
+                rampGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                rampGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+                rampGeo.computeVertexNormals();
+
+                const rampMesh = new THREE.Mesh(rampGeo, rampMat);
+                rampMesh.receiveShadow = true;
+                cornerGroup.add(rampMesh);
+
+                // 2. Sealed Under-Skirt Backing along outer table walls (prevents visual gaps)
+                const sideSkirtGeo = new THREE.BufferGeometry();
+                const sBase = end * (halfH - Lz);
+                const sidePositions = new Float32Array([
+                    cx, 0.005, sBase,
+                    cx, 0.005, cz,
+                    cx, H, cz
+                ]);
+                sideSkirtGeo.setAttribute('position', new THREE.BufferAttribute(sidePositions, 3));
+                sideSkirtGeo.computeVertexNormals();
+                cornerGroup.add(new THREE.Mesh(sideSkirtGeo, wallMat));
+
+                const endSkirtGeo = new THREE.BufferGeometry();
+                const eBase = side * (halfPlayW - Lx);
+                const endPositions = new Float32Array([
+                    eBase, 0.005, cz,
+                    cx, 0.005, cz,
+                    cx, H, cz
+                ]);
+                endSkirtGeo.setAttribute('position', new THREE.BufferAttribute(endPositions, 3));
+                endSkirtGeo.computeVertexNormals();
+                cornerGroup.add(new THREE.Mesh(endSkirtGeo, wallMat));
+
+                scene.add(cornerGroup);
+            });
+        });
+    }
+
+    function buildRods() {
+        // Lineup: 1 Goalie, 2 Defenders, 3 Attackers per side
+        // Bottom is User (+Z), Top is CPU (-Z)
+        const lineupConfig = [
+            { z: 8.8,  role: 'goalie',  count: 1, team: 'p', spacing: 0 },
+            { z: 6.0,  role: 'defense', count: 2, team: 'p', spacing: 4.8 },
+            { z: 2.2,  role: 'attack',  count: 3, team: 'ai', spacing: 3.15 },
+            { z: -2.2, role: 'attack',  count: 3, team: 'p', spacing: 3.15 },
+            { z: -6.0, role: 'defense', count: 2, team: 'ai', spacing: 4.8 },
+            { z: -8.8, role: 'goalie',  count: 1, team: 'ai', spacing: 0 }
+        ];
+
+        const chromeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.92, roughness: 0.15 });
+        const collarMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+        const shadowDecalTex = new THREE.CanvasTexture(createShadowCrossCanvas());
+        const ROD_LENGTH = FW + 4;
+
+        lineupConfig.forEach(cfg => {
+            const rodGroup = new THREE.Group();
+            rodGroup.position.z = cfg.z;
+            scene.add(rodGroup);
+
+            // Subdivided Chrome Telescoping Bar for Real-Time Beam Bending
+            const barGeo = new THREE.CylinderGeometry(0.08, 0.08, ROD_LENGTH, 12, 48);
+            barGeo.rotateZ(Math.PI / 2);
+            // Cache pristine rest positions for harmonic vertex displacement
+            const basePositions = new Float32Array(barGeo.attributes.position.array);
+
+            const barMesh = new THREE.Mesh(barGeo, chromeMat);
+            barMesh.position.y = 1.1;
+            barMesh.castShadow = true;
+            rodGroup.add(barMesh);
+
+            const rodRecord = {
+                group: rodGroup,
+                role: cfg.role,
+                team: cfg.team,
+                count: cfg.count,
+                players: [],
+                maxLocalX: 0,
+                flickAngle: 0,
+                flickVelocity: 0,
+                flickTarget: 0,
+                barMesh: barMesh,
+                barGeo: barGeo,
+                basePositions: basePositions,
+                rodLength: ROD_LENGTH,
+                prevX: 0,
+                slideVel: 0,
+                vibration: {
+                    active: false,
+                    time: 0,
+                    amplitude: 0,
+                    frequency: 48,
+                    decay: 14,
+                    hitLocalX: 0,
+                    direction: 1
+                }
+            };
+
+            const figurineTex = new THREE.CanvasTexture(createFigurineCanvas(cfg.team, cfg.role));
+            figurineTex.magFilter = THREE.NearestFilter;
+            figurineTex.minFilter = THREE.LinearFilter;
+
+            const figurineMat = new THREE.MeshStandardMaterial({
+                map: figurineTex,
+                transparent: true,
+                alphaTest: 0.15,
+                roughness: 0.5,
+                metalness: 0.1,
+                side: THREE.DoubleSide
+            });
+
+            for (let i = 0; i < cfg.count; i++) {
+                let localX = 0;
+                if (cfg.count === 2) {
+                    localX = (i === 0 ? -1 : 1) * (cfg.spacing / 2);
+                } else if (cfg.count === 3) {
+                    localX = (i - 1) * cfg.spacing; // Spread evenly: -3.15, 0, +3.15
+                }
+
+                // Figurine mount group (rotates on wrist-flick strike)
+                const pMount = new THREE.Group();
+                pMount.position.set(localX, 1.1, 0);
+
+                // Rod Collar / Fastener
+                const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.32, 12), collarMat);
+                collar.rotation.z = Math.PI / 2;
+                pMount.add(collar);
+
+                // 2.5D Figurine Sprite Plane
+                const spriteMesh = new THREE.Mesh(new THREE.PlaneGeometry(P_W, P_H), figurineMat);
+                spriteMesh.position.set(0, -0.42, 0);
+                spriteMesh.rotation.x = -Math.PI / 3.4; // Reclined to directly face top-down camera
+                pMount.add(spriteMesh);
+
+                rodGroup.add(pMount);
+
+                // Light Shadow Cross on felt floor (No hard bounding box shadows)
+                const shadowCross = new THREE.Mesh(
+                    new THREE.PlaneGeometry(1.5, 1.5),
+                    new THREE.MeshBasicMaterial({ map: shadowDecalTex, transparent: true, opacity: 0.75, depthWrite: false })
+                );
+                shadowCross.rotation.x = -Math.PI / 2;
+                shadowCross.position.set(localX, 0.02, cfg.z);
+                scene.add(shadowCross);
+
+                rodRecord.players.push({
+                    mount: pMount,
+                    localX: localX,
+                    shadow: shadowCross
+                });
+
+                if (Math.abs(localX) > rodRecord.maxLocalX) {
+                    rodRecord.maxLocalX = Math.abs(localX);
+                }
+            }
+
+            rods.push(rodRecord);
+        });
+    }
+
+    function buildBall() {
+        const ballTexCanvas = document.createElement('canvas');
+        ballTexCanvas.width = 128;
+        ballTexCanvas.height = 64;
+        const bctx = ballTexCanvas.getContext('2d');
+        bctx.fillStyle = '#ffffff';
+        bctx.fillRect(0, 0, 128, 64);
+        bctx.fillStyle = '#1e293b';
+        // Traditional pentagon patches
+        for (let x = 16; x < 128; x += 32) {
+            bctx.beginPath();
+            bctx.arc(x, 20, 8, 0, Math.PI * 2);
+            bctx.arc(x + 16, 44, 8, 0, Math.PI * 2);
+            bctx.fill();
+        }
+        const bTex = new THREE.CanvasTexture(ballTexCanvas);
+
+        const ballGeo = new THREE.SphereGeometry(BALL_R, 32, 32);
+        const ballMat = new THREE.MeshStandardMaterial({
+            map: bTex,
+            roughness: 0.35,
+            metalness: 0.15
+        });
+
+        ballMesh = new THREE.Mesh(ballGeo, ballMat);
+        ballMesh.castShadow = true;
+        scene.add(ballMesh);
+
+        // Chalk landing ripple ring
+        const rippleGeo = new THREE.RingGeometry(0.1, 0.3, 32);
+        const rippleMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0,
+            side: THREE.DoubleSide
+        });
+        dropRippleMesh = new THREE.Mesh(rippleGeo, rippleMat);
+        dropRippleMesh.rotation.x = -Math.PI / 2;
+        dropRippleMesh.position.y = 0.03;
+        scene.add(dropRippleMesh);
+
+        resetBall(true);
+    }
+
+    function resetBall(dropFromSky = true) {
+        if (!ballMesh) return;
+        dropBounces = 0;
+
+        // Position at tabletop center, elevated if dropping from above
+        ballMesh.position.set(0, dropFromSky ? 4.2 : BALL_R, 0);
+
+        // Initial tactical kickoff trajectory
+        const angle = (Math.random() - 0.5) * 0.55;
+        const serveDir = Math.random() > 0.5 ? 1 : -1;
+        const initialSpeed = 0.12;
+
+        bVel = {
+            x: Math.sin(angle) * initialSpeed,
+            y: dropFromSky ? -0.02 : 0,
+            z: Math.cos(angle) * initialSpeed * serveDir
+        };
+
+        // Reset chalk landing ripple ring
+        if (dropRippleMesh) {
+            dropRippleMesh.position.set(0, 0.03, 0);
+            dropRippleMesh.scale.set(0.5, 0.5, 0.5);
+            dropRippleMesh.material.opacity = 0;
+        }
+    }
+
+    // Sharp Geometric Starburst Geometry (8-point acute cartoon impact flash)
+    function createSharpStarGeometry(outerR, innerR) {
+        const shape = new THREE.Shape();
+        const points = 8;
+        for (let i = 0; i < points * 2; i++) {
+            const r = i % 2 === 0 ? outerR : innerR;
+            const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+            const x = Math.cos(angle) * r;
+            const y = Math.sin(angle) * r;
+            if (i === 0) shape.moveTo(x, y);
+            else shape.lineTo(x, y);
+        }
+        shape.closePath();
+        return new THREE.ShapeGeometry(shape);
+    }
+
+    // High-Kinetic Impact Spark Burst with Sharp Facets & Speed Wedges
+    function spawnImpact(x, z, type, colorHex, hitVelX = 0, hitVelZ = 0) {
+        // Shockwave expansion ring
+        const ringGeo = new THREE.RingGeometry(0.08, 0.22, 24);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: colorHex,
+            transparent: true,
+            opacity: 0.95,
+            side: THREE.DoubleSide
+        });
+        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+        ringMesh.rotation.x = -Math.PI / 2;
+        ringMesh.position.set(x, 0.05, z);
+        scene.add(ringMesh);
+        impactRings.push({ mesh: ringMesh, scale: 1, alpha: 0.95 });
+
+        if (type === 'kick') {
+            // 1. Sharp Geometric Cartoon Starburst at Contact Point
+            const starGeo = createSharpStarGeometry(0.72, 0.24);
+            const starMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 1.0,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const starMesh = new THREE.Mesh(starGeo, starMat);
+            starMesh.rotation.x = -Math.PI / 2;
+            starMesh.position.set(x, 0.42, z);
+            scene.add(starMesh);
+
+            // Secondary chromatic star outline ring
+            const starRimMat = new THREE.MeshBasicMaterial({
+                color: colorHex,
+                transparent: true,
+                opacity: 0.9,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const starRimMesh = new THREE.Mesh(starGeo, starRimMat);
+            starRimMesh.rotation.x = -Math.PI / 2;
+            starRimMesh.rotation.z = Math.PI / 8; // Offset facets
+            starRimMesh.scale.set(1.25, 1.25, 1.25);
+            starRimMesh.position.set(x, 0.41, z);
+            scene.add(starRimMesh);
+
+            geometricStars.push({
+                core: starMesh,
+                rim: starRimMesh,
+                scale: 0.4,
+                rot: Math.random() * Math.PI,
+                rotSpeed: (Math.random() - 0.5) * 0.4,
+                life: 1.0
+            });
+
+            // 2. Sharp Geometric Diamond Shards & Speed Wedges
+            const shardCount = 14;
+            const diamondGeo = new THREE.OctahedronGeometry(0.09, 0); // Sharp 8-faceted crystal diamond
+            for (let i = 0; i < shardCount; i++) {
+                const isBrightCore = i < 4;
+                const mat = new THREE.MeshBasicMaterial({
+                    color: isBrightCore ? 0xffffff : colorHex,
+                    wireframe: i % 3 === 0
+                });
+                const shard = new THREE.Mesh(diamondGeo, mat);
+                shard.position.set(x, 0.38, z);
+                shard.scale.set(0.7, 1.6, 0.7); // Elongated kinetic wedge
+
+                // Launch in outward fan biased along ball strike deflection
+                const spreadAngle = Math.random() * Math.PI * 2;
+                const baseSpeed = 0.12 + Math.random() * 0.16;
+                const vx = Math.cos(spreadAngle) * baseSpeed + hitVelX * 0.4;
+                const vz = Math.sin(spreadAngle) * baseSpeed + hitVelZ * 0.4;
+                const vy = 0.06 + Math.random() * 0.1;
+
+                scene.add(shard);
+                impactParticles.push({
+                    mesh: shard,
+                    vx, vy, vz,
+                    rx: (Math.random() - 0.5) * 0.5,
+                    ry: (Math.random() - 0.5) * 0.5,
+                    life: 1.0,
+                    isGeometric: true
+                });
+            }
+
+            // 3. Directional Kinetic Speed Arrows
+            for (let i = 0; i < 4; i++) {
+                const arrowGeo = new THREE.ConeGeometry(0.06, 0.32, 3);
+                arrowGeo.rotateX(Math.PI / 2);
+                const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+                arrow.position.set(x, 0.38, z);
+                const angle = Math.atan2(hitVelZ, hitVelX) + (i - 1.5) * 0.35;
+                arrow.rotation.y = -angle;
+
+                scene.add(arrow);
+                impactParticles.push({
+                    mesh: arrow,
+                    vx: Math.cos(angle) * 0.22,
+                    vy: 0.02,
+                    vz: Math.sin(angle) * 0.22,
+                    rx: 0, ry: 0,
+                    life: 0.85,
+                    isGeometric: true
+                });
+            }
+
+            // Trigger kinetic micro-hitstop for solid, visceral arcade impact
+            hitstopFrames = 2;
+            cameraShake.intensity = 0.14;
+        } else {
+            // Bumper / wall impact sparks
+            const count = 8;
+            for (let i = 0; i < count; i++) {
+                const spark = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.07, 0.07, 0.07),
+                    new THREE.MeshBasicMaterial({ color: colorHex })
+                );
+                spark.position.set(x, 0.35, z);
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 0.07 + Math.random() * 0.08;
+                scene.add(spark);
+                impactParticles.push({
+                    mesh: spark,
+                    vx: Math.cos(angle) * speed,
+                    vy: 0.04 + Math.random() * 0.05,
+                    vz: Math.sin(angle) * speed,
+                    rx: 0.2, ry: 0.2,
+                    life: 1.0,
+                    isGeometric: false
+                });
+            }
+            cameraShake.intensity = 0.05;
+        }
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Camera Shake relaxation
+        if (cameraShake.intensity > 0.002) {
+            camera.position.x = (Math.random() - 0.5) * cameraShake.intensity;
+            cameraShake.intensity *= 0.86;
+        } else {
+            camera.position.x = 0;
+        }
+
+        // Drop Ripple Animation
+        if (dropRippleMesh && dropRippleMesh.material.opacity > 0.01) {
+            dropRippleMesh.scale.addScalar(0.08);
+            dropRippleMesh.material.opacity *= 0.91;
+        }
+
+        // Update Sharp Geometric Cartoon Stars
+        for (let i = geometricStars.length - 1; i >= 0; i--) {
+            const s = geometricStars[i];
+            s.scale += 0.22;
+            s.rot += s.rotSpeed;
+            s.life -= 0.11;
+
+            s.core.scale.set(s.scale, s.scale, s.scale);
+            s.core.rotation.z = s.rot;
+            s.core.material.opacity = Math.max(0, s.life);
+
+            s.rim.scale.set(s.scale * 1.35, s.scale * 1.35, s.scale * 1.35);
+            s.rim.rotation.z = s.rot + Math.PI / 8;
+            s.rim.material.opacity = Math.max(0, s.life * 0.85);
+
+            if (s.life <= 0) {
+                scene.remove(s.core);
+                scene.remove(s.rim);
+                geometricStars.splice(i, 1);
+            }
+        }
+
+        // Particle sparks update with sharp angular rotations
+        for (let i = impactParticles.length - 1; i >= 0; i--) {
+            const p = impactParticles[i];
+            p.mesh.position.x += p.vx;
+            p.mesh.position.y += p.vy;
+            p.mesh.position.z += p.vz;
+            p.mesh.rotation.x += p.rx;
+            p.mesh.rotation.y += p.ry;
+            p.vy -= 0.004; // Gravity
+            p.life -= p.isGeometric ? 0.05 : 0.04;
+
+            if (p.isGeometric) {
+                p.mesh.scale.multiplyScalar(0.94);
+            } else {
+                p.mesh.scale.multiplyScalar(0.95);
+            }
+
+            if (p.life <= 0) {
+                scene.remove(p.mesh);
+                impactParticles.splice(i, 1);
+            }
+        }
+
+        // Shockwave rings update
+        for (let i = impactRings.length - 1; i >= 0; i--) {
+            const r = impactRings[i];
+            r.scale += 0.14;
+            r.alpha *= 0.86;
+            r.mesh.scale.set(r.scale, r.scale, r.scale);
+            r.mesh.material.opacity = r.alpha;
+            if (r.alpha <= 0.02) {
+                scene.remove(r.mesh);
+                impactRings.splice(i, 1);
+            }
+        }
+
+        // Update Rod Elastic Beam Bending & Figurine Wiggle
+        updateRodVibrations();
+
+        // Hitstop micro-pause check for visceral kinetic weight
+        if (hitstopFrames > 0) {
+            hitstopFrames--;
+        } else if (isMatchActive && !isGoalPause) {
+            updateMatchPhysics();
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    // Dynamic Beam Bending & Harmonic Vibration of Metal Rods
+    function updateRodVibrations() {
+        const dt = 1 / 60;
+
+        rods.forEach(rod => {
+            const v = rod.vibration;
+            if (!v.active) return;
+
+            v.time += dt;
+            // Exponentially damped harmonic oscillation
+            const currentAmp = v.amplitude * Math.exp(-v.decay * v.time);
+            const wavePhase = v.frequency * v.time;
+            const primaryHarmonic = Math.sin(wavePhase) * currentAmp * v.direction;
+
+            if (currentAmp < 0.003) {
+                // Return bar vertices to exact pristine state
+                v.active = false;
+                const pos = rod.barGeo.attributes.position.array;
+                const base = rod.basePositions;
+                for (let j = 0; j < pos.length; j++) {
+                    pos[j] = base[j];
+                }
+                rod.barGeo.attributes.position.needsUpdate = true;
+
+                // Neutralize player mount tilt
+                rod.players.forEach(p => {
+                    p.mount.rotation.z = 0;
+                    p.mount.position.z = 0;
+                });
+                return;
+            }
+
+            // Real-Time Pinned Beam Deflection along Bar Geometry
+            // Bar length spans along X-axis: -halfL to +halfL
+            const halfL = rod.rodLength / 2;
+            const pos = rod.barGeo.attributes.position.array;
+            const base = rod.basePositions;
+
+            for (let i = 0; i < pos.length; i += 3) {
+                const bx = base[i]; // Local X along rod
+                // Pinned boundary condition: 0 deflection at side wall clamps, max at center/impact
+                const normX = (bx + halfL) / rod.rodLength; // 0.0 to 1.0
+                const fundamental = Math.sin(normX * Math.PI); // First harmonic mode
+
+                // Localized flex envelope centered at impact point
+                const distFromHit = Math.abs(bx - v.hitLocalX);
+                const localFlex = Math.exp(-distFromHit * 0.7);
+
+                const zDeflection = primaryHarmonic * (fundamental * 0.65 + localFlex * 0.35);
+
+                pos[i + 2] = base[i + 2] + zDeflection; // Displace in Z (kinetic stroke direction)
+            }
+            rod.barGeo.attributes.position.needsUpdate = true;
+
+            // Figurine Mounts shudder with the steel rod flex
+            rod.players.forEach(p => {
+                const distFromHit = Math.abs(p.localX - v.hitLocalX);
+                const pFlex = Math.exp(-distFromHit * 0.6) * primaryHarmonic;
+                // Offset mount position in Z and add high-frequency torsional vibration
+                p.mount.position.z = pFlex;
+                p.mount.rotation.z = (Math.cos(wavePhase * 1.3) * currentAmp * 1.8) * Math.sign(p.localX - v.hitLocalX || 1);
+            });
+        });
+    }
+
+    function updateMatchPhysics() {
+        // Physical Ball Drop-in & Table Gravity
+        if (ballMesh.position.y > BALL_R) {
+            bVel.y -= 0.012; // Gravity
+            ballMesh.position.y += bVel.y;
+            if (ballMesh.position.y <= BALL_R) {
+                ballMesh.position.y = BALL_R;
+                bVel.y = -bVel.y * 0.48; // Elastic felt table bounce
+                dropBounces++;
+                playSfx('drop');
+                if (dropRippleMesh) {
+                    dropRippleMesh.position.set(ballMesh.position.x, 0.03, ballMesh.position.z);
+                    dropRippleMesh.scale.set(1, 1, 1);
+                    dropRippleMesh.material.opacity = 0.85;
+                }
+                if (dropBounces >= 3) {
+                    bVel.y = 0;
+                }
+            }
+        }
+
+        // Tabletop Motion & Tactical Friction
+        ballMesh.position.x += bVel.x;
+        ballMesh.position.z += bVel.z;
+        ballMesh.rotation.x += bVel.z * 1.5;
+        ballMesh.rotation.z -= bVel.x * 1.5;
+
+        bVel.x *= 0.995;
+        bVel.z *= 0.995;
+
+        // Tournament Field-Integrated Corner Ramps: Smooth Incline Roll Physics
+        const halfPlayW = PLAY_W / 2;
+        const halfH = FH / 2;
+        let isOnCornerRamp = false;
+
+        [-1, 1].forEach(side => {
+            [-1, 1].forEach(end => {
+                const cornerX = side * halfPlayW;
+                const cornerZ = end * halfH;
+
+                // Distance inward from the corner apex towards center of pitch
+                const dx = (cornerX - ballMesh.position.x) * side;
+                const dz = (cornerZ - ballMesh.position.z) * end;
+
+                // Check if the ball is inside the triangular ramp sector
+                if (dx >= 0 && dx <= CORNER_RAMP_LX && dz >= 0 && dz <= CORNER_RAMP_LZ) {
+                    const normDist = (dx / CORNER_RAMP_LX) + (dz / CORNER_RAMP_LZ);
+                    if (normDist <= 1.0) {
+                        isOnCornerRamp = true;
+                        const rampDepth = 1.0 - normDist; // 0 at field level, 1 at corner apex
+                        const targetRampY = BALL_R + rampDepth * CORNER_RAMP_H;
+
+                        // Ball smoothly rides directly along the sloped pitch surface
+                        if (ballMesh.position.y < targetRampY) {
+                            ballMesh.position.y = targetRampY;
+                        }
+
+                        // Normalized slope downhill vector (pointing away from corner into active field)
+                        const invLx = 1.0 / CORNER_RAMP_LX;
+                        const invLz = 1.0 / CORNER_RAMP_LZ;
+                        const gradLen = Math.hypot(invLx, invLz);
+                        const downhillX = -side * (invLx / gradLen);
+                        const downhillZ = -end * (invLz / gradLen);
+
+                        // Continuous downhill gravitational acceleration returning dead ball to play
+                        const gravityRoll = 0.022 + rampDepth * 0.038;
+                        bVel.x += downhillX * gravityRoll;
+                        bVel.z += downhillZ * gravityRoll;
+
+                        // Smoothly convert forward climbing momentum into a natural bank roll
+                        const intoSlopeVel = bVel.x * (-downhillX) + bVel.z * (-downhillZ);
+                        if (intoSlopeVel > 0) {
+                            bVel.x += downhillX * intoSlopeVel * 1.35;
+                            bVel.z += downhillZ * intoSlopeVel * 1.35;
+                        }
+
+                        // Apex contact guard: smoothly redirect if ball reaches extreme corner
+                        if (dx < 0.28 && dz < 0.28) {
+                            ballMesh.position.x = cornerX - side * 0.30;
+                            ballMesh.position.z = cornerZ - end * 0.30;
+                            bVel.x = downhillX * 0.16;
+                            bVel.z = downhillZ * 0.16;
+                        }
+                    }
+                }
+            });
+        });
+
+        // Side Rail Rubber Bumper Rebound
+        const halfBumperLimit = PLAY_W / 2 - BALL_R;
+        if (!isOnCornerRamp && Math.abs(ballMesh.position.x) > halfBumperLimit) {
+            const side = Math.sign(ballMesh.position.x);
+            bVel.x = -side * Math.max(0.12, Math.abs(bVel.x) * 1.02);
+            ballMesh.position.x = side * halfBumperLimit;
+
+            // Bumper elastic compression recoil
+            if (side < 0) bumperRecoil.left = 0.08;
+            else bumperRecoil.right = 0.08;
+
+            playSfx('bumper');
+            spawnImpact(ballMesh.position.x, ballMesh.position.z, 'bumper', 0xfde68a);
+        }
+
+        // Bumper spring relaxation
+        if (leftBumperMesh) {
+            leftBumperMesh.position.x = (-FW / 2 + BUMPER_THICK / 2) - bumperRecoil.left;
+            bumperRecoil.left *= 0.82;
+        }
+        if (rightBumperMesh) {
+            rightBumperMesh.position.x = (FW / 2 - BUMPER_THICK / 2) + bumperRecoil.right;
+            bumperRecoil.right *= 0.82;
+        }
+
+        // Goal Check vs Goal Line Walls
+        if (Math.abs(ballMesh.position.z) > FH / 2) {
+            if (Math.abs(ballMesh.position.x) < GOAL_W / 2) {
+                // GOAL SCORED!
+                triggerGoal(ballMesh.position.z < 0 ? 'player' : 'ai');
+                return;
+            } else {
+                // Backwall Bounce
+                bVel.z *= -1.02;
+                ballMesh.position.z = Math.sign(ballMesh.position.z) * (FH / 2);
+                playSfx('bumper');
+            }
+        }
+
+        // Rod Movement & Player Figurine Collision Checking
+        rods.forEach(rod => {
+            const isUserControlled = (rod.team === 'p' && rod.role === activeRole);
+            const travelLimit = (PLAY_W / 2 - P_W / 2) - rod.maxLocalX;
+            let targetRodX = 0;
+
+            if (isUserControlled) {
+                // Direct User Mouse / Touch Tracking within travel bounds
+                targetRodX = (mouseNormX - 0.5) * travelLimit * 2;
+            } else if (rod.team === 'p') {
+                // Passive Friendly Squad Tracking (Smoothly moves nearest player toward ball)
+                let bestLocalX = 0;
+                let minDist = 999;
+                rod.players.forEach(p => {
+                    const dist = Math.abs((rod.group.position.x + p.localX) - ballMesh.position.x);
+                    if (dist < minDist) { minDist = dist; bestLocalX = p.localX; }
+                });
+                const desired = ballMesh.position.x - bestLocalX;
+                const trackingSpeed = rod.role === 'goalie' ? 0.35 : 0.05;
+                targetRodX = rod.group.position.x + (desired - rod.group.position.x) * trackingSpeed;
+            } else {
+                // AI Opponent Tracking
+                let bestLocalX = 0;
+                let minDist = 999;
+                rod.players.forEach(p => {
+                    const dist = Math.abs((rod.group.position.x + p.localX) - ballMesh.position.x);
+                    if (dist < minDist) { minDist = dist; bestLocalX = p.localX; }
+                });
+                const desired = ballMesh.position.x - bestLocalX;
+                const reactionDelay = rod.role === 'goalie' ? 0.85 : 0.075;
+                targetRodX = rod.group.position.x + (desired - rod.group.position.x) * reactionDelay;
+            }
+
+            // Strict Goalie goal mouth clamping
+            if (rod.role === 'goalie') {
+                targetRodX = Math.max(-GOAL_W / 2.3, Math.min(GOAL_W / 2.3, targetRodX));
+            } else {
+                targetRodX = Math.max(-travelLimit, Math.min(travelLimit, targetRodX));
+            }
+
+            // Smooth rod translation with velocity tracking for push/pull slice momentum
+            const prevX = rod.group.position.x;
+            rod.group.position.x += (targetRodX - rod.group.position.x) * 0.2;
+            rod.slideVel = rod.group.position.x - prevX;
+
+            // Wrist-Flick Strike Spring Dynamics
+            rod.flickAngle += (rod.flickTarget - rod.flickAngle) * 0.28;
+            rod.flickTarget *= 0.85; // Damped return to neutral
+
+            rod.players.forEach(p => {
+                p.mount.rotation.x = rod.flickAngle;
+                // Synchronize floor shadow cross position
+                p.shadow.position.x = rod.group.position.x + p.localX;
+
+                // Collision Detection: Ball vs Chunky Miniature Figurine
+                const playerWorldX = rod.group.position.x + p.localX;
+                const dx = Math.abs(ballMesh.position.x - playerWorldX);
+                const dz = Math.abs(ballMesh.position.z - rod.group.position.z);
+
+                if (dx < (P_W + BALL_R * 2) / 2 && dz < (P_D + BALL_R * 2) / 2 && ballMesh.position.y < 1.2) {
+                    // Mechanical Wrist-Flick Execution
+                    const isGreen = rod.team === 'p';
+                    rod.flickTarget = isGreen ? -0.85 : 0.85; // Sharp flick toward opposing goal
+
+                    // Expressive Multi-Angle Foosball Physics:
+                    // Contact offset ranges from -1.0 (left edge) to +1.0 (right edge)
+                    const halfWidth = P_W / 2;
+                    const rawOffset = (ballMesh.position.x - playerWorldX) / halfWidth;
+                    const clampedOffset = Math.max(-1.15, Math.min(1.15, rawOffset));
+
+                    // Non-linear angle curve: center strikes remain focused forward drives,
+                    // while edge hits whip out at aggressive 45° - 60° cut angles
+                    const anglePower = Math.sign(clampedOffset) * Math.pow(Math.abs(clampedOffset), 0.78);
+                    const lateralSpeed = anglePower * 0.32 + (rod.slideVel || 0) * 0.85; // Slice momentum transfer
+
+                    // Forward drive velocity: center hits maximize drive, sharp angle clips trade a fraction for lateral cut
+                    const baseDriveSpeed = 0.24;
+                    const forwardDrive = Math.max(0.14, baseDriveSpeed - Math.abs(clampedOffset) * 0.05);
+
+                    bVel.x = lateralSpeed;
+                    bVel.z = isGreen ? -forwardDrive : forwardDrive;
+
+                    // Push ball outside player bounding box to eliminate sticking
+                    ballMesh.position.z = rod.group.position.z + (isGreen ? -1 : 1) * (P_D / 2 + BALL_R + 0.12);
+
+                    // Trigger High-Kinetic Rod Vibration & Metal Harmonic Ping
+                    rod.vibration.active = true;
+                    rod.vibration.time = 0;
+                    rod.vibration.amplitude = Math.min(0.24, 0.14 + Math.abs(bVel.z) * 0.35);
+                    rod.vibration.direction = isGreen ? -1 : 1;
+                    rod.vibration.hitLocalX = playerWorldX - rod.group.position.x;
+
+                    playSfx('kick');
+                    playSfx('rod_resonance');
+
+                    // Exact contact intersection where wedge tip strikes the ball
+                    const contactX = (ballMesh.position.x + playerWorldX) / 2;
+                    const contactZ = rod.group.position.z + (isGreen ? -1 : 1) * (P_D / 2);
+
+                    spawnImpact(contactX, contactZ, 'kick', isGreen ? 0x34d399 : 0xf43f5e, bVel.x, bVel.z);
+                }
+            });
+        });
+    }
+
+    function chooseRole(role) {
+        activeRole = role;
+        document.querySelectorAll('.toy-card').forEach(c => c.classList.remove('active'));
+        document.getElementById(`card-${role}`).classList.add('active');
+    }
+
+    function startMatch() {
+        initAudio();
+        playSfx('whistle');
+        document.getElementById('menu-modal').classList.add('hidden');
+        document.getElementById('hud').classList.remove('hidden');
+        document.getElementById('hud-role-name').innerText = activeRole.toUpperCase();
+
+        isMatchActive = true;
+        isGoalPause = false;
+        scores = { player: 0, ai: 0 };
+        updateScoresUI();
+        resetBall(true);
+    }
+
+    function triggerGoal(scorer) {
+        isGoalPause = true;
+        if (scorer === 'player') scores.player++;
+        else scores.ai++;
+
+        updateScoresUI();
+        playSfx('goal');
+
+        // Show Goal Banner
+        const banner = document.getElementById('goal-banner');
+        const text = document.getElementById('goal-text');
+        const sub = document.getElementById('goal-subtext');
+        banner.classList.remove('hidden');
+
+        if (scorer === 'player') {
+            text.innerText = 'GOOOAAAL!';
+            text.style.color = '#34d399';
+            sub.innerText = 'TACTICAL MASTERCLASS BY YOU!';
+        } else {
+            text.innerText = 'CPU SCORES!';
+            text.style.color = '#f43f5e';
+            sub.innerText = 'RED SQUAD PUNISHES THE DEFENSE!';
+        }
+
+        setTimeout(() => {
+            banner.classList.add('hidden');
+            if (scores.player >= 5 || scores.ai >= 5) {
+                concludeMatch(scores.player >= 5);
+            } else {
+                isGoalPause = false;
+                resetBall(true);
+            }
+        }, 1800);
+    }
+
+    function updateScoresUI() {
+        document.getElementById('score-player').innerText = scores.player;
+        document.getElementById('score-ai').innerText = scores.ai;
+    }
+
+    function concludeMatch(playerWon) {
+        isMatchActive = false;
+        const modal = document.getElementById('gameover-modal');
+        const title = document.getElementById('gameover-title');
+        const desc = document.getElementById('gameover-desc');
+        const trophy = document.getElementById('gameover-trophy');
+
+        modal.classList.remove('hidden');
+        if (playerWon) {
+            trophy.innerText = '🏆';
+            title.innerText = 'VICTORY!';
+            title.style.color = '#34d399';
+            desc.innerText = 'Outstanding tactical awareness! Your squad conquered the tabletop.';
+        } else {
+            trophy.innerText = '💥';
+            title.innerText = 'DEFEAT';
+            title.style.color = '#f43f5e';
+            desc.innerText = 'The CPU squad found the passing lanes. Regroup and challenge again!';
+        }
+    }
+
+    function restartGame() {
+        document.getElementById('gameover-modal').classList.add('hidden');
+        document.getElementById('menu-modal').classList.remove('hidden');
+        document.getElementById('hud').classList.add('hidden');
+        isMatchActive = false;
+        resetBall(true);
+    }
+
+    // Initialize application on window load
+    window.onload = () => {
+        initEngine();
+    };
+</script>
+</body>
+</html>
